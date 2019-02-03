@@ -4,6 +4,7 @@ module MultiDijkstra
   ( Grammar(..), Expansion(..)
   , Tree(..)
   , dijkstra
+  , prettyTree
   ) where
 
 import Data.Foldable (foldl')
@@ -32,6 +33,20 @@ instance Ord a => Ord (Expansion a) where
   compare (NonTerm a) (NonTerm b) = compare a b
   compare (Term    _) (NonTerm _) = GT
   compare (NonTerm _) (Term    _) = LT
+
+
+prettyTree :: (Show a) => Tree a -> String
+prettyTree = go "" True
+  where
+    pip done = if done then "└─ " else "├─ "
+    go prefix done (Leaf (Term a)) = prefix ++ pip done ++ show a ++ "\n"
+    go prefix done (Leaf (NonTerm name)) = prefix ++ pip done ++ "<" ++ name ++ ">\n"
+    go prefix done (Node name children) = self ++ middle ++ end
+      where
+        newPrefix = prefix ++ if done then "    " else "│   "
+        self = prefix ++ pip done ++ "<" ++ name ++ ">\n"
+        middle = concatMap (go newPrefix False) (init children)
+        end = go newPrefix True (last children)
 
 
 dijkstra :: forall w a. (Num w, Ord w, Ord a)
@@ -74,13 +89,13 @@ dijkstra (Grammar g) weight start end = go initialFringe Map.empty Map.empty
             updateDestination :: (PSQ (Expansion a) w, Map String [Expansion a])
                               -> (String, [Expansion a])
                               -> (PSQ (Expansion a) w, Map String [Expansion a])
-            updateDestination (f, p) (destName, sources)
+            updateDestination (f, p) edge@(destName, sources)
               | isNothing newWDest = (f, p)
               | isNothing wDest || newWDest < wDest = (f', p')
               | otherwise = (f, p)
               where
                 wDest = PSQ.lookup (NonTerm destName) f
-                newWDest = fmap sum . sequence $ map (`Map.lookup` newDone) sources
+                newWDest = fmap ((weight edge +) . sum) . sequence $ map (`Map.lookup` newDone) sources
                 f' = PSQ.insert (NonTerm destName) (fromJust newWDest) f
                 p' = Map.insert destName sources p
 
